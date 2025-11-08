@@ -1,11 +1,11 @@
 pipeline {
     agent any
     
-    environment {
-        MAVEN_VERSION = '3.9.9'
-        MAVEN_HOME = "${WORKSPACE}\\.maven"
+    tools {
+        jdk 'JDK17'
+        maven 'Maven3'
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
@@ -14,87 +14,27 @@ pipeline {
             }
         }
         
-        stage('Setup Maven') {
-            steps {
-                echo 'Setting up Maven and Java...'
-                script {
-                    bat """
-                        @echo off
-                        REM Set JAVA_HOME from java executable
-                        for /f "tokens=*" %%i in ('where java') do set JAVA_EXE=%%i
-                        for %%i in ("%JAVA_EXE%") do set JAVA_BIN=%%~dpi
-                        for %%i in ("%JAVA_BIN:~0,-5%") do set JAVA_HOME=%%~fi
-                        echo JAVA_HOME set to: %JAVA_HOME%
-                        
-                        REM Download Maven if not exists
-                        if not exist "${MAVEN_HOME}\\bin\\mvn.cmd" (
-                            echo Downloading Maven ${MAVEN_VERSION}...
-                            powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.zip' -OutFile 'maven.zip'"
-                            echo Extracting Maven...
-                            powershell -Command "Expand-Archive -Path maven.zip -DestinationPath . -Force"
-                            move apache-maven-${MAVEN_VERSION} .maven
-                            del maven.zip
-                            echo Maven installed
-                        ) else (
-                            echo Maven already available
-                        )
-                        
-                        REM Set JAVA_HOME in environment and verify
-                        set JAVA_HOME=%JAVA_HOME%
-                        "${MAVEN_HOME}\\bin\\mvn.cmd" -version
-                    """
-                }
-            }
-        }
-
         stage('Build') {
             steps {
                 echo 'Compiling Java source code...'
-                script {
-                    bat """
-                        @echo off
-                        for /f "tokens=*" %%i in ('where java') do set JAVA_EXE=%%i
-                        for %%i in ("%JAVA_EXE%") do set JAVA_BIN=%%~dpi
-                        for %%i in ("%JAVA_BIN:~0,-5%") do set JAVA_HOME=%%~fi
-                        set JAVA_HOME=%JAVA_HOME%
-                        "${MAVEN_HOME}\\bin\\mvn.cmd" clean compile
-                    """
-                }
+                bat 'mvn clean compile'
             }
         }
-
+        
         stage('Test') {
             steps {
                 echo 'Running JUnit 5 tests...'
-                script {
-                    bat """
-                        @echo off
-                        for /f "tokens=*" %%i in ('where java') do set JAVA_EXE=%%i
-                        for %%i in ("%JAVA_EXE%") do set JAVA_BIN=%%~dpi
-                        for %%i in ("%JAVA_BIN:~0,-5%") do set JAVA_HOME=%%~fi
-                        set JAVA_HOME=%JAVA_HOME%
-                        "${MAVEN_HOME}\\bin\\mvn.cmd" test
-                    """
-                }
+                bat 'mvn test'
             }
         }
         
         stage('Package') {
             steps {
                 echo 'Packaging application...'
-                script {
-                    bat """
-                        @echo off
-                        for /f "tokens=*" %%i in ('where java') do set JAVA_EXE=%%i
-                        for %%i in ("%JAVA_EXE%") do set JAVA_BIN=%%~dpi
-                        for %%i in ("%JAVA_BIN:~0,-5%") do set JAVA_HOME=%%~fi
-                        set JAVA_HOME=%JAVA_HOME%
-                        "${MAVEN_HOME}\\bin\\mvn.cmd" package -DskipTests
-                    """
-                }
+                bat 'mvn package -DskipTests'
             }
         }
-
+        
         stage('Publish Results') {
             steps {
                 echo 'Publishing test results...'
@@ -102,7 +42,7 @@ pipeline {
             }
         }
     }
-
+    
     post {
         success {
             echo 'Build completed successfully!'
